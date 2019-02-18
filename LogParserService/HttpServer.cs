@@ -1,52 +1,64 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 
 namespace LogParserService
 {
     class HttpServer
     {
-        private string url;
-        private string template;
-        private HttpListener listener = new HttpListener();
+        private string url; //URL который слушаем
+        private string template; 
+        private HttpListener listener = new HttpListener(); 
         private Thread thread;
-        private int accepts;
-        private HttpListenerContext context;
+        private int accepts; //ограничение для семафора
+        private HttpListenerContext context; //обьект запроса
 
+        /// <summary>
+        /// Конструктор, который принимает полный URL
+        /// </summary>
+        /// <param name="uri"></param>
         public HttpServer(Uri uri)
         {
             url = uri.AbsoluteUri;
-            template = "/connection/";
             accepts = Environment.ProcessorCount;
         }
 
+        /// <summary>
+        /// Конструктор, который принимает uri и template
+        /// </summary>
+        /// <param name="uri"></param>
+        /// <param name="template"></param>
         public HttpServer(Uri uri, string template)
         {
-            url = uri.AbsoluteUri;
-            this.template = template;
+            url = uri.AbsoluteUri + template;
+            accepts = Environment.ProcessorCount;
         }
 
+        
         #region Асинхронный HttpServer 
+
+        /// <summary>
+        /// Запускает работу Http сервера в асинхронном режиме
+        /// </summary>
         public async void RunAsync()
         {
             Console.WriteLine("Работаем асинхронно");
-            listener.Prefixes.Add(url);
-            await Task.Run(() => StartAsync());
+            listener.Prefixes.Add(url); //определяем какой url слушаем
+            await Task.Run(() => StartAsync()); //Запускаем HTTP Listener асинхронно
         }
 
+        /// <summary>
+        /// Запускает HTTP Listener и асинхронно обрабатывает запросы
+        /// </summary>
         async void StartAsync()
         {
 
             try
             {
-                // Start the HTTP listener:
                 listener.Start();
                 Console.WriteLine("HTTP listener запущен");
             }
@@ -55,70 +67,74 @@ namespace LogParserService
                 Console.Error.WriteLine(hlex.Message);
             }
 
-            // Accept connections:
-            // Higher values mean more connections can be maintained yet at a much slower average response time; fewer connections will be rejected.
-            // Lower values mean less connections can be maintained yet at a much faster average response time; more connections will be rejected.
+            //создаем семафор и ограничиваем его количеством ядер
             var sem = new Semaphore(accepts, accepts);
 
             while (true)
             {
-                sem.WaitOne();
+                sem.WaitOne(); //ожидаем выполнения семафора
                 Console.WriteLine("Ожидаем подключений...");
+                //Асинхронно ожидаем запроса, при получении начинаем обрабатывать
                 await listener.GetContextAsync().ContinueWith(async (t) =>
                 {
-                    string errMessage;
-
                     try
                     {
-                        sem.Release();
-
-                        context = t.Result;
-                        await ProcessListenerContext(context);
+                        sem.Release(); //освобождаем семафор
+                        context = t.Result; //получаем обьект запроса
+                        await ProcessListenerContext(context); // асинхронная обработка запроса
                     }
                     catch (Exception ex)
                     {
-                        errMessage = ex.ToString();
-                        await Console.Error.WriteLineAsync(errMessage);
+                        await Console.Error.WriteLineAsync(ex.ToString());
                     }
                 });
             }
         }
 
-
+        /// <summary>
+        /// Асинхронная обработка запроса и отправка ответа
+        /// </summary>
+        /// <param name="listenerContext"></param>
+        /// <returns></returns>
         static async Task ProcessListenerContext(HttpListenerContext listenerContext)
         {
             try
             {
-                // Get the response action to take:
-                HttpListenerRequest request = listenerContext.Request;
+                HttpListenerRequest request = listenerContext.Request; //полученный запрос
                 Console.WriteLine($"Получили {request.HttpMethod} запрос {request.RawUrl}");
                 string responseString = "";
                 if (request.RawUrl.Contains("id="))
                 {
                     var requestStr = request.RawUrl.Split(new string[] { "id=" }, StringSplitOptions.RemoveEmptyEntries);
                     Console.WriteLine($"Получили {requestStr[1]}");
+
+                    //Получили id платежа
                     string id = requestStr[1];
+                    //Создаем обьект Transaction
                     Transaction transaction = new Transaction(id, DateTime.Now, "КИВИ");
+                    //Асинхронно ищем лог
                     //await Task.Run(() => transaction.SearchLog());
                     transaction.gatewayID = 123;
                     transaction.pathToFile = new string[2] { "Пока нет пути", "Пока нет пути" };
                     transaction.log = "Платеж прошел";
+                    //Сиреализуем в JSON обьект Transation для отправки в ответ
                     DataContractJsonSerializer jsonFormatter = new DataContractJsonSerializer(typeof(Transaction));
                     using (MemoryStream stream1 = new MemoryStream())
                     {
                         jsonFormatter.WriteObject(stream1, transaction);
-                        byte[] json = stream1.ToArray();
-                        responseString += Encoding.UTF8.GetString(json, 0, json.Length);
-                        await Console.Error.WriteLineAsync(responseString);
+                        byte[] json = stream1.ToArray(); 
+                        responseString = Encoding.UTF8.GetString(json, 0, json.Length);
+                        stream1.Close();
                     }
                     // получаем объект ответа
                     HttpListenerResponse response = listenerContext.Response;
                     byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
-                    // получаем поток ответа и пишем в него ответ
                     response.ContentLength64 = buffer.Length;
+                    // получаем поток ответа и пишем в него ответ
                     using (Stream output = response.OutputStream)
                     {
                         output.Write(buffer, 0, buffer.Length);
+                        await Console.Error.WriteLineAsync($"Отправляем JSON ответ: { responseString}");
                         // закрываем поток
                         output.Close();
                     }
@@ -132,6 +148,7 @@ namespace LogParserService
         #endregion
 
         #region Синхронный HttpServer
+        //В данной программе НЕ ИСПОЛЬЗУЕТСЯ
         private void Start()
         {
             listener.Prefixes.Add(url);
@@ -166,7 +183,6 @@ namespace LogParserService
                     }
                     // получаем объект ответа
                     HttpListenerResponse response = context.Response;
-                    // создаем ответ в виде кода html
                     string responseStr = responseString;
                     byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseStr);
                     // получаем поток ответа и пишем в него ответ
@@ -191,12 +207,16 @@ namespace LogParserService
         }
         #endregion
 
+        /// <summary>
+        /// Остановка HTTP listener
+        /// </summary>
         public void Stop()
         {
-            //возможно часть с флагом является лишней, но это добавляет спокойствия
             Console.WriteLine("Обработка подключений завершена");
             listener.Stop();
+            Console.WriteLine("HTTP listener выключен");
             listener.Close();
+            Console.WriteLine("HTTP listener закрыт");
         }
     }
 }

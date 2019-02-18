@@ -1,12 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Diagnostics;
-using System.Linq;
 using System.ServiceProcess;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace LogParserService
 {
@@ -24,12 +17,14 @@ namespace LogParserService
 
         protected override void OnStart(string[] args)
         {
-            httpServer = new HttpServer(new Uri("http://localhost:8888/connection/"));
+            httpServer = new HttpServer(new Uri(Properties.Settings.Default.url));
+            //Запуск асинхронной работы HTTP сервера
             httpServer.RunAsync();
         }
 
         protected override void OnStop()
         {
+            //Остановка HTTP сервера
             httpServer.Stop();
         }
     }

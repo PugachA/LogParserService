@@ -23,27 +23,30 @@ namespace LogParserService.Properties {
             }
         }
         
-        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        [global::System.Configuration.DefaultSettingValueAttribute("\\\\SUPPORT3\\project\\Gateways\\")]
         public string folderName {
             get {
                 return ((string)(this["folderName"]));
             }
-            set {
-                this["folderName"] = value;
-            }
         }
         
-        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        [global::System.Configuration.DefaultSettingValueAttribute("Data source=sqltest\\sql2014;Initial Catalog=Garbage;Integrated Security=true;")]
         public string connectionString {
             get {
                 return ((string)(this["connectionString"]));
             }
-            set {
-                this["connectionString"] = value;
+        }
+        
+        [global::System.Configuration.ApplicationScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("http://localhost:8888/connection/")]
+        public string url {
+            get {
+                return ((string)(this["url"]));
             }
         }
     }
